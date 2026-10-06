@@ -9,7 +9,8 @@ if [[ -n "${LAZYVIM_HOME:-}" ]]; then
   export HOME="$LAZYVIM_HOME"
 else
   export HOME="$(mktemp -d)"
-  trap 'rm -rf "$HOME"' EXIT
+  # Neovim may still be writing its cache for a moment after it exits: never fail on cleanup.
+  trap 'sleep 1; rm -rf "$HOME" 2>/dev/null || true' EXIT
   git clone --quiet --depth 1 https://github.com/LazyVim/starter "$HOME/.config/nvim"
   printf '{ "extras": ["lazyvim.plugins.extras.editor.neo-tree"], "install_version": 8, "news": {}, "version": 8 }\n' \
     >"$HOME/.config/nvim/lazyvim.json"
