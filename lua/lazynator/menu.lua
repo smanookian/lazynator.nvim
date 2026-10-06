@@ -56,11 +56,19 @@ local function map(lhs, fn)
 end
 
 local function after_show()
+  -- Close when you leave the window, but only that window: the menu may already have been
+  -- replaced by the stats (or the other way round) in the same slot.
+  local mine = win.win
   vim.api.nvim_create_autocmd("WinLeave", {
+    group = vim.api.nvim_create_augroup("lazynator.menu", { clear = true }),
     buffer = win.buf,
     once = true,
     callback = function()
-      vim.schedule(close)
+      vim.schedule(function()
+        if win.win == mine then
+          close()
+        end
+      end)
     end,
   })
   map("q", close)
@@ -68,12 +76,15 @@ local function after_show()
 end
 
 --- The lesson menu.
-function M.open()
+---@param opts? {select?: integer} lesson to put the cursor on (after a lesson: the next one)
+function M.open(opts)
+  opts = opts or {}
   local counts = M.counts()
-  local lines = ui.with_spacey("idle", {
-    { { "Hi! I'm Spacey.", "LazynatorTitle" } },
-    { { "Pick a lesson: press its number." } },
-    { { "Only real key presses count.", "LazynatorDim" } },
+  local nxt = opts.select and groups.list[opts.select]
+  local lines = ui.with_spacey(nxt and "happy" or "idle", {
+    { { nxt and "Well done!" or "Hi! I'm Spacey.", "LazynatorTitle" } },
+    { { nxt and ("Next: " .. nxt.name .. ". Press Enter.") or "Pick a lesson: press its number." } },
+    { { nxt and "Or press another number, or q to stop." or "Only real key presses count.", "LazynatorDim" } },
   })
   lines[#lines + 1] = {}
   local first_row = #lines + 1
@@ -94,9 +105,12 @@ function M.open()
     { "q", "LazynatorAccent" },
     { " close" },
   }
-  local top = ui.show(win, { pos = "center", lines = lines, title = "Lazynator", focus = true, width = 44, redraw = M.open })
+  local function redraw()
+    M.open(opts)
+  end
+  local top = ui.show(win, { pos = "center", lines = lines, title = "Lazynator", focus = true, width = 44, redraw = redraw })
   first_row = first_row + top
-  vim.api.nvim_win_set_cursor(win.win, { first_row, 0 })
+  vim.api.nvim_win_set_cursor(win.win, { first_row + (opts.select or 1) - 1, 0 })
   for i, g in ipairs(groups.list) do
     map(tostring(i), function()
       close()

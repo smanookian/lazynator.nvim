@@ -52,6 +52,7 @@ medium ones a 5-row Spacey, large ones (50+ rows) a 9-row Spacey with more space
 - When it ends, everything goes back: your tab, your buffers (even if you pressed
   "Delete Other Buffers"), toggles and your colorscheme.
 - The keycaps light up as you type. If a key opens something (a picker, Lazygit), close it with `Esc` or `q`.
+- When a lesson is done, the menu comes back with the next lesson selected. Press `Enter` to go on, or `q` to stop.
 - Keys come from your config, read live. Change a keymap and the next lesson shows it. No restart.
   Keys that are not in your config are skipped.
 

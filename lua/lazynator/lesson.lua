@@ -333,6 +333,14 @@ finish = function()
   vim.defer_fn(function()
     if L == me then
       M.stop()
+      -- go on: the menu opens with the next lesson selected (Enter starts it)
+      local next_i
+      for i, g in ipairs(groups.list) do
+        if g.id == me.group.id then
+          next_i = i % #groups.list + 1
+        end
+      end
+      require("lazynator.menu").open({ select = next_i })
     end
   end, 3500)
 end
@@ -574,6 +582,16 @@ function M.stop()
   end
   pcall(vim.api.nvim_del_augroup_by_id, S.augroup)
   ui.close(S.float)
+
+  -- Terminals the lesson opened (Lazygit, a shell) stop when their window closes below.
+  -- Their "exited with code" warning would look like an error, so remove it first.
+  for b in pairs(S.added) do
+    if vim.api.nvim_buf_is_valid(b) and vim.bo[b].buftype == "terminal" then
+      for _, au in ipairs(vim.api.nvim_get_autocmds({ event = "TermClose", buffer = b })) do
+        pcall(vim.api.nvim_del_autocmd, au.id)
+      end
+    end
+  end
 
   -- Put toggles and the colorscheme back while still in the lesson tab.
   if vim.api.nvim_tabpage_is_valid(S.tab) then
