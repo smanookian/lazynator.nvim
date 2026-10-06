@@ -275,6 +275,25 @@ function M.show(f, o)
     f.buf = vim.api.nvim_create_buf(false, true)
     vim.bo[f.buf].bufhidden = "hide"
     vim.bo[f.buf].filetype = "lazynator"
+    local buf = f.buf
+    -- A buffer key pressed inside the menu (like Space b d or Space b b) puts another buffer
+    -- into this window. Then the window is no longer ours: close it instead of showing junk.
+    vim.api.nvim_create_autocmd("BufWinLeave", {
+      buffer = buf,
+      callback = function()
+        vim.schedule(function()
+          if f.buf == buf and f.win and vim.api.nvim_win_is_valid(f.win) and vim.api.nvim_win_get_buf(f.win) ~= buf then
+            local other = vim.api.nvim_win_get_buf(f.win)
+            M.close(f)
+            -- "Delete buffer" may have made an empty [No Name] buffer just for this window.
+            if vim.api.nvim_buf_is_valid(other) and vim.api.nvim_buf_get_name(other) == ""
+              and not vim.bo[other].modified and #vim.fn.win_findbuf(other) == 0 then
+              pcall(vim.api.nvim_buf_delete, other, {})
+            end
+          end
+        end)
+      end,
+    })
   end
   local s = SIZES[M.size()]
   local text_width, height = M.render(f.buf, o.lines, s.pad_x, s.pad_y)

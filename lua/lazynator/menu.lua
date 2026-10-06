@@ -73,6 +73,15 @@ local function after_show()
   })
   map("q", close)
   map("<Esc>", close)
+  -- Leader keys mean nothing here. Without this, Space b o pressed in the menu would
+  -- "delete other buffers": that is all of yours. which-key is told to skip our windows,
+  -- or it would catch Space first.
+  local ok, wk = pcall(require, "which-key.config")
+  local disable = ok and type(wk) == "table" and wk.options and wk.options.disable
+  if disable and type(disable.ft) == "table" and not vim.tbl_contains(disable.ft, "lazynator") then
+    table.insert(disable.ft, "lazynator")
+  end
+  map("<leader>", "<Nop>")
 end
 
 --- The lesson menu.

@@ -33,4 +33,17 @@ describe("menu", function()
     truthy(row:find("Files", 1, true), row)
     press("q")
   end)
+  it("closes, not breaks, when a buffer key puts another buffer in the menu window", function()
+    vim.cmd("edit mine.txt")
+    menu.open()
+    vim.cmd("enew") -- what Space b d / Space b b do inside the menu
+    vim.wait(100)
+    eq(nil, float_text())
+    eq({}, vim.tbl_filter(function(w)
+      return vim.api.nvim_win_get_config(w).relative ~= ""
+    end, vim.api.nvim_list_wins()))
+    eq(0, #vim.tbl_filter(function(b)
+      return vim.bo[b].buflisted and vim.api.nvim_buf_get_name(b) == ""
+    end, vim.api.nvim_list_bufs()))
+  end)
 end)
