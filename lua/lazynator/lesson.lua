@@ -115,12 +115,23 @@ local function ensure_buffers()
 end
 
 local function ensure_split()
+  local win = vim.api.nvim_get_current_win() -- when_ready: a normal window in the lesson tab
   if #normal_wins() < 2 then
-    local win = main_win()
-    if win then
-      vim.api.nvim_win_call(win, function()
-        vim.cmd("vsplit")
-      end)
+    vim.api.nvim_win_call(win, function()
+      vim.cmd("vsplit")
+    end)
+  end
+  -- "Delete Buffer and Window" closes every window that shows its buffer, so the other window
+  -- needs a buffer of its own (when there is one), or the whole lesson tab would close.
+  local cur = vim.api.nvim_win_get_buf(win)
+  for _, w in ipairs(normal_wins()) do
+    if w ~= win and vim.api.nvim_win_get_buf(w) == cur then
+      for _, b in ipairs(live_scratch()) do
+        if b ~= cur then
+          pcall(vim.api.nvim_win_set_buf, w, b)
+          break
+        end
+      end
     end
   end
 end
@@ -312,7 +323,9 @@ local function go_to(i)
   if not step then
     return finish()
   end
-  L.mood = "idle"
+  if not L.note then
+    L.mood = "idle"
+  end
   step.state = "now"
   step.lit = 0
   -- Setup (scratch buffers, a split) waits until you are back from a picker or Lazygit.
@@ -323,6 +336,17 @@ local function go_to(i)
     end
   end)
   render()
+end
+
+-- The next step that is not done or skipped: after the current one first, then from the top.
+local function next_open()
+  local n = #L.steps
+  for k = 1, n do
+    local i = (L.cur - 1 + k) % n + 1
+    if L.steps[i].state == "todo" or L.steps[i].state == "now" then
+      return i
+    end
+  end
 end
 
 finish = function()
@@ -432,24 +456,51 @@ local function on_typed(t)
   redraw()
 end
 
+-- A key of this round really fired. Any open key of the round counts, in any order, and the
+-- next key is asked right away (a quick next press must not get lost).
 local function on_press(id)
-  local s = L and L.steps and L.steps[L.cur]
-  if not s or s.state ~= "now" or s.id ~= id then
+  if not (L and L.steps) or L.finished then
     return
   end
+  local hit
+  for i, s in ipairs(L.steps) do
+    if s.id == id and (s.state == "now" or s.state == "todo") then
+      hit = i
+      break
+    end
+  end
+  if not hit then
+    return
+  end
+  local s = L.steps[hit]
   s.state = "done"
-  progress.done(s.id)
   s.lit = #s.tokens
+  progress.done(s.id)
   L.mood = "happy"
   L.note = { "Yes! That was a real press.", "LazynatorOk" }
-  redraw()
-  local me, i = L, L.cur
-  vim.defer_fn(function()
-    if L == me and L.cur == i then
-      L.note = nil
-      go_to(i + 1)
+  local me, note = L, L.note
+  vim.schedule(function()
+    if L ~= me then
+      return
     end
-  end, 700)
+    if hit == L.cur or L.steps[L.cur].state ~= "now" then
+      local nxt = next_open()
+      if nxt then
+        go_to(nxt)
+      else
+        finish()
+      end
+    else
+      render()
+    end
+  end)
+  vim.defer_fn(function()
+    if L == me and L.note == note then
+      L.note = nil
+      L.mood = "idle"
+      render()
+    end
+  end, 1500)
 end
 
 local function on_nudge(id)
@@ -528,6 +579,30 @@ function M.start(group_id)
   L.unsub[#L.unsub + 1] = track.on_press(on_press)
   L.unsub[#L.unsub + 1] = require("lazynator.nudge").on_nudge(on_nudge)
   vim.api.nvim_create_autocmd({ "TabEnter", "VimResized" }, { group = L.augroup, callback = redraw })
+  -- Keys like "Delete Buffers to the Left" close your buffers; LazyVim then shows another buffer
+  -- in your windows, maybe one of Spacey's. Put yours back, so "Delete Buffer and Window"
+  -- in the lesson can never close your own windows or tab.
+  vim.api.nvim_create_autocmd("BufWinEnter", {
+    group = L.augroup,
+    callback = function()
+      vim.schedule(function()
+        if not L then
+          return
+        end
+        for w, info in pairs(L.orig.wins) do
+          if vim.api.nvim_win_is_valid(w) and vim.tbl_contains(L.scratch, vim.api.nvim_win_get_buf(w)) then
+            local b = info.buf
+            if not vim.api.nvim_buf_is_valid(b) and info.name ~= "" then
+              b = vim.fn.bufadd(info.name)
+            end
+            if vim.api.nvim_buf_is_valid(b) then
+              pcall(vim.api.nvim_win_set_buf, w, b)
+            end
+          end
+        end
+      end)
+    end,
+  })
   vim.api.nvim_create_autocmd("TabClosed", {
     group = L.augroup,
     callback = function()
@@ -573,10 +648,15 @@ end
 --- Skip the current key.
 function M.skip()
   local s = L and L.steps and L.steps[L.cur]
-  if s then
+  if s and not L.finished then
     s.state = "skip"
     L.note = nil
-    go_to(L.cur + 1)
+    local nxt = next_open()
+    if nxt then
+      go_to(nxt)
+    else
+      finish()
+    end
   end
 end
 

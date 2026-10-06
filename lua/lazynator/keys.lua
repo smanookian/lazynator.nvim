@@ -53,15 +53,29 @@ function M.typed_tokens(id)
 end
 
 local names = {
-  Space = "Space", CR = "Enter", Esc = "Esc", Tab = "Tab", BS = "Backspace", lt = "<",
-  Bslash = "\\", Bar = "|", Up = "Up", Down = "Down", Left = "Left", Right = "Right",
+  Space = "Space", CR = "Enter", Esc = "Esc", Tab = "Tab", BS = "Backspace", lt = "Less than",
+  Bslash = "Backslash", Bar = "Bar", Up = "Up", Down = "Down", Left = "Left", Right = "Right",
   Del = "Delete", Home = "Home", End = "End", PageUp = "PageUp", PageDown = "PageDown",
+}
+-- Symbol keys get a name: "[`]" or "[]]" in a keycap is hard to read.
+local symbols = {
+  ["`"] = "Backtick", ["'"] = "Quote", ['"'] = "Double quote", ["["] = "Left bracket",
+  ["]"] = "Right bracket", ["{"] = "Left brace", ["}"] = "Right brace", ["("] = "Left paren",
+  [")"] = "Right paren", [","] = "Comma", ["."] = "Period", ["/"] = "Slash", ["\\"] = "Backslash",
+  ["|"] = "Bar", ["-"] = "Minus", ["_"] = "Underscore", ["="] = "Equals", ["+"] = "Plus",
+  [";"] = "Semicolon", [":"] = "Colon", ["<"] = "Less than", [">"] = "Greater than",
+  ["?"] = "Question mark", ["!"] = "Exclamation mark", ["*"] = "Star", ["#"] = "Hash",
+  ["~"] = "Tilde", ["^"] = "Caret", ["%"] = "Percent", ["&"] = "Ampersand", ["@"] = "At",
+  ["$"] = "Dollar",
 }
 local mods = { C = "Ctrl", M = "Alt", A = "Alt", S = "Shift", D = "Super" }
 
 local function key_name(k)
   if names[k] then
     return names[k]
+  end
+  if symbols[k] then
+    return symbols[k]
   end
   if #k == 1 then
     return k:lower()
@@ -98,7 +112,7 @@ function M.label(tok)
   if tok:match("^%u$") then
     return "Shift " .. tok:lower()
   end
-  return tok
+  return symbols[tok] or tok
 end
 
 ---@return string[] one label per key press

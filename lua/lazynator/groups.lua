@@ -15,7 +15,7 @@ M.list = {
     keys = {
       "<S-l>", "<S-h>", "<leader>bd", "<leader>,", "<leader>bb",
       "<leader>bo", "<leader>bj", "<leader>bp", "<leader>bP", "<leader>br",
-      "<leader>bl", "<leader>bD", "]b", "[b", "<leader>`",
+      "<leader>bl", { "<leader>bD", needs = "split" }, "]b", "[b", "<leader>`",
     },
   },
   {

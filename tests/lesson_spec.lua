@@ -76,6 +76,18 @@ describe("lessons", function()
     eq(false, progress.is_done("H"))
   end)
 
+  it("counts a quick next press right after a check mark, and keys in any order", function()
+    lesson.start("buffers")
+    truthy(wait_for(has("▸ [Shift l]")))
+    type_keys("<S-l>")
+    type_keys("<S-h>") -- no pause at all
+    truthy(wait_for(has("✓ [Shift h]")), panel())
+    truthy(has("✓ [Shift l]")(), panel())
+    type_keys("<leader>bb") -- the 5th key, before the 3rd and 4th
+    truthy(wait_for(has("✓ [Space] [b] [b]")), panel())
+    truthy(has("▸ [Space] [b] [d]")(), panel())
+  end)
+
   local function buffer_keys()
     local keys = require("lazynator.keys")
     return vim.tbl_map(function(k)
@@ -199,7 +211,7 @@ describe("lessons", function()
 
   it("makes a split before a key that needs two windows", function()
     lesson.start("windows")
-    truthy(wait_for(has("▸ [Space] [|]")), panel())
+    truthy(wait_for(has("▸ [Space] [Bar]")), panel())
     eq(1, normal_wins())
     lesson.skip()
     truthy(wait_for(has("▸ [Ctrl h]")), panel())
