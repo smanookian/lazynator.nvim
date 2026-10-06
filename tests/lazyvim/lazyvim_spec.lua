@@ -24,7 +24,8 @@ describe("LazyVim", function()
     eq("<leader>bd", nudge.match("bd"))
     eq("<leader>e", nudge.match("Neotree"))
     eq("<leader>ff", nudge.match("Telescope find_files"))
-    eq("<leader>gg", nudge.match("LazyGit"))
+    -- LazyVim only maps Space g g when the lazygit program is installed (Omarchy has it).
+    eq(vim.fn.executable("lazygit") == 1 and "<leader>gg" or nil, nudge.match("LazyGit"))
   end)
 
   it("counts a real press of a LazyVim keymap and the keymap still works", function()
