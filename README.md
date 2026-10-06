@@ -42,6 +42,8 @@ medium ones a 5-row Spacey, large ones (50+ rows) a 9-row Spacey with more space
 | `:Lazynator stats` | Learned / learning / new, per group. |
 | `:Lazynator skip` | Skip the current key in a lesson. |
 | `:Lazynator stop` | End the lesson now. |
+| `:Lazynator reset` | Start over: forget all progress. Asks first. |
+| `:Lazynator reset <group>` | Forget the progress of one group, e.g. `:Lazynator reset buffers`. |
 
 ## Lessons
 
@@ -90,7 +92,7 @@ return {
 
 - No network. No telemetry.
 - Progress is a small JSON file: `~/.local/share/nvim/lazynator/progress.json`
-  (`stdpath("data")`). Delete it to start over.
+  (`stdpath("data")`). `:Lazynator reset` starts over.
 - Startup cost: about 0.2 ms. The rest (about 2 ms) runs after Neovim is on screen.
 
 ## How it works

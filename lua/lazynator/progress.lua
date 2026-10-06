@@ -55,17 +55,7 @@ local function load()
   return data
 end
 
-function M.save()
-  if timer then
-    timer:stop()
-  end
-  if #pending == 0 then
-    return
-  end
-  local d = read_disk()
-  for _, op in ipairs(pending) do
-    apply(d, op)
-  end
+local function write(d)
   local path = M.path()
   vim.fn.mkdir(vim.fn.fnamemodify(path, ":h"), "p")
   local tmp = ("%s.%d.tmp"):format(path, uv.os_getpid())
@@ -77,7 +67,36 @@ function M.save()
   f:close()
   uv.fs_rename(tmp, path)
   data = d
+end
+
+function M.save()
+  if timer then
+    timer:stop()
+  end
+  if #pending == 0 then
+    return
+  end
+  local d = read_disk()
+  for _, op in ipairs(pending) do
+    apply(d, op)
+  end
+  write(d)
   pending = {}
+end
+
+--- Forget progress: all keys, or only the given key ids. Saved right away.
+---@param ids? string[]
+function M.reset(ids)
+  M.save()
+  local d = read_disk()
+  if ids then
+    for _, id in ipairs(ids) do
+      d.keys[id] = nil
+    end
+  else
+    d.keys = {}
+  end
+  write(d)
 end
 
 local function record(id, kind)

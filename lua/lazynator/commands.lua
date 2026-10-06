@@ -13,7 +13,44 @@ local subs = {
   stop = function()
     require("lazynator.lesson").stop()
   end,
+  reset = function(args)
+    M.reset(args[2])
+  end,
 }
+
+--- Reset progress for everything, or for one group. Asks first.
+---@param group_id? string
+function M.reset(group_id)
+  local groups = require("lazynator.groups")
+  local progress = require("lazynator.progress")
+  local group = group_id and groups.get(group_id)
+  if group_id and not group then
+    vim.notify("Lazynator: no group called '" .. group_id .. "'. Try: " .. table.concat(
+      vim.tbl_map(function(g)
+        return g.id
+      end, groups.list),
+      ", "
+    ))
+    return
+  end
+  local what = group and (group.name .. " progress") or "all Lazynator progress"
+  if vim.fn.confirm("Reset " .. what .. "?", "&Yes\n&No", 2) ~= 1 then
+    return
+  end
+  if group then
+    local keys = require("lazynator.keys")
+    local ids = {}
+    for id in pairs(progress.all()) do
+      if keys.group_of(id) == group.id then
+        ids[#ids + 1] = id
+      end
+    end
+    progress.reset(ids)
+  else
+    progress.reset()
+  end
+  vim.notify("Lazynator: " .. what .. " is reset.")
+end
 
 ---@param args string[]
 function M.run(args)
@@ -22,7 +59,7 @@ function M.run(args)
   end
   local f = subs[args[1]]
   if not f then
-    vim.notify("Lazynator: unknown command '" .. args[1] .. "'. Try: lesson, stats, skip, stop")
+    vim.notify("Lazynator: unknown command '" .. args[1] .. "'. Try: lesson, stats, skip, stop, reset")
     return
   end
   f(args)
@@ -39,7 +76,7 @@ function M.complete(lead, line)
   if #words == 1 then
     return starting_with(vim.tbl_keys(subs), lead)
   end
-  if #words == 2 and words[2] == "lesson" then
+  if #words == 2 and (words[2] == "lesson" or words[2] == "reset") then
     return starting_with(
       vim.tbl_map(function(g)
         return g.id
