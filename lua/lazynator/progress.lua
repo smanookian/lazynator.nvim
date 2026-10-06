@@ -5,7 +5,7 @@ local M = {}
 
 local uv = vim.uv or vim.loop
 local data ---@type {version:integer, keys:table<string, lazynator.Progress>}?
-local pending = {} ---@type {id:string, kind:"press"|"nudge", t:integer}[]
+local pending = {} ---@type {id:string, kind:"press"|"nudge"|"done", t:integer}[]
 local timer
 
 ---@class lazynator.Progress
@@ -14,6 +14,7 @@ local timer
 ---@field nudges integer
 ---@field last_press? integer
 ---@field last_nudge? integer
+---@field done? boolean pressed for real in a lesson
 
 function M.path()
   return vim.fn.stdpath("data") .. "/lazynator/progress.json"
@@ -41,6 +42,8 @@ local function apply(d, op)
     k.presses = k.presses + 1
     k.streak = k.streak + 1
     k.last_press = op.t
+  elseif op.kind == "done" then
+    k.done = true
   else
     k.nudges = k.nudges + 1
     k.streak = 0
@@ -114,6 +117,18 @@ end
 
 function M.nudge(id)
   record(id, "nudge")
+end
+
+--- The key was pressed for real in a lesson: it does not come up in new lessons again.
+function M.done(id)
+  if not M.is_done(id) then
+    record(id, "done")
+  end
+end
+
+function M.is_done(id)
+  local k = load().keys[id]
+  return k ~= nil and k.done == true
 end
 
 ---@return lazynator.Progress

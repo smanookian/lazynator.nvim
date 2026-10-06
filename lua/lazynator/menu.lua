@@ -17,19 +17,22 @@ local function lpad(s, n)
   return string.rep(" ", math.max(0, n - vim.api.nvim_strwidth(s))) .. s
 end
 
---- learned / learning / new counts per group, from your live keymaps.
----@return {id:string, name:string, learned:integer, learning:integer, new:integer, total:integer}[]
+--- learned / learning / new (and done in a lesson) counts per group, from your live keymaps.
+---@return {id:string, name:string, learned:integer, learning:integer, new:integer, done:integer, total:integer}[]
 function M.counts()
   local live = keys.live()
   local out = {}
   local in_group = {}
   for _, g in ipairs(groups.list) do
-    local c = { id = g.id, name = g.name, learned = 0, learning = 0, new = 0, total = 0 }
+    local c = { id = g.id, name = g.name, learned = 0, learning = 0, new = 0, done = 0, total = 0 }
     for _, k in ipairs(keys.group_keys(g, live)) do
       in_group[k.id] = true
       local s = progress.state(k.id)
       c[s] = c[s] + 1
       c.total = c.total + 1
+      if progress.is_done(k.id) then
+        c.done = c.done + 1
+      end
     end
     out[#out + 1] = c
   end
@@ -85,26 +88,28 @@ local function after_show()
 end
 
 --- The lesson menu.
----@param opts? {select?: integer} lesson to put the cursor on (after a lesson: the next one)
+---@param opts? {select?: integer, more?: boolean} lesson to put the cursor on (after a lesson: the next round)
 function M.open(opts)
   opts = opts or {}
   local counts = M.counts()
   local nxt = opts.select and groups.list[opts.select]
+  local next_text = nxt and (opts.more and ("Next: more " .. nxt.name .. ". Press Enter.") or ("Next: " .. nxt.name .. ". Press Enter."))
   local lines = ui.with_spacey(nxt and "happy" or "idle", {
     { { nxt and "Well done!" or "Hi! I'm Spacey.", "LazynatorTitle" } },
-    { { nxt and ("Next: " .. nxt.name .. ". Press Enter.") or "Pick a lesson: press its number." } },
+    { { next_text or "Pick a lesson: press its number." } },
     { { nxt and "Or press another number, or q to stop." or "Only real key presses count.", "LazynatorDim" } },
   })
   lines[#lines + 1] = {}
   local first_row = #lines + 1
   for i, g in ipairs(groups.list) do
     local c = counts[i]
+    local finished = c.total > 0 and c.done == c.total
     lines[#lines + 1] = {
       { (" %d  "):format(i), "LazynatorAccent" },
       { pad(g.name, 10) },
-      { ui.size() == "small" and "" or ui.bar(c.learned, c.total, 10, c.learning) .. "  ", "LazynatorLearned" },
-      { ("%d/%d learned"):format(c.learned, c.total), "LazynatorDim" },
-      { c.learning > 0 and ("  · %d learning"):format(c.learning) or "", "LazynatorLearning" },
+      { ui.size() == "small" and "" or ui.bar(c.done, c.total, 10) .. "  ", "LazynatorLearned" },
+      finished and { "✓ finished", "LazynatorOk" } or { ("%d/%d done"):format(c.done, c.total), "LazynatorDim" },
+      { ("  · %d learned"):format(c.learned), "LazynatorLearning" },
     }
   end
   lines[#lines + 1] = {}

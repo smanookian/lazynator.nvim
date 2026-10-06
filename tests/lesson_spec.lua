@@ -11,7 +11,7 @@ local function panel()
     local b = vim.api.nvim_win_get_buf(w)
     if vim.bo[b].filetype == "lazynator" then
       local text = table.concat(vim.api.nvim_buf_get_lines(b, 0, -1, false), "\n")
-      if text:find("lesson") then
+      if text:find("lesson") or text:find("review") then
         return text
       end
     end
@@ -50,6 +50,68 @@ describe("lessons", function()
       pcall(vim.api.nvim_buf_delete, b, { force = true })
     end
     vim.cmd("edit mine-1.txt | edit mine-2.txt")
+    progress.reset()
+  end)
+
+  it("does not ask finished keys again: the next round has the next keys", function()
+    -- buffers keys in tests/init.lua: L, H, <leader>bd, <leader>, , <leader>bb, <leader>bo, <leader>bD
+    for _, id in ipairs({ "L", "H", "<leader>bd", "<leader>,", "<leader>bb" }) do
+      progress.done(id)
+    end
+    lesson.start("buffers")
+    truthy(wait_for(has("Buffers lesson")), panel())
+    local p = panel()
+    eq(nil, p:find("[Shift l]", 1, true))
+    truthy(p:find("▸ [Space] [b] [o]", 1, true), p)
+    truthy(p:find("[Space] [b] [Shift d]", 1, true), p)
+  end)
+
+  it("marks a key done only when it really fired, not when skipped", function()
+    lesson.start("buffers")
+    truthy(wait_for(has("▸ [Shift l]")))
+    type_keys("<S-l>")
+    truthy(wait_for(has("▸ [Shift h]")))
+    lesson.skip()
+    eq(true, progress.is_done("L"))
+    eq(false, progress.is_done("H"))
+  end)
+
+  local function buffer_keys()
+    local keys = require("lazynator.keys")
+    return vim.tbl_map(function(k)
+      return k.id
+    end, keys.group_keys(require("lazynator.groups").get("buffers"), keys.live()))
+  end
+
+  it("when every key is done: a review of the keys not learned yet", function()
+    for _, id in ipairs(buffer_keys()) do
+      progress.done(id)
+    end
+    for _ = 1, 5 do
+      progress.press("L") -- learned now
+    end
+    lesson.start("buffers")
+    truthy(wait_for(has("Buffers review")), panel())
+    eq(nil, panel():find("[Shift l]", 1, true))
+    truthy(panel():find("▸ [Shift h]", 1, true), panel())
+  end)
+
+  it("when every key is done and learned: says so", function()
+    for _, id in ipairs(buffer_keys()) do
+      progress.done(id)
+      for _ = 1, 5 do
+        progress.press(id)
+      end
+    end
+    lesson.start("buffers")
+    truthy(wait_for(has("You learned every key here!")), panel())
+  end)
+
+  it("after a reset the keys come back", function()
+    progress.done("L")
+    progress.reset()
+    lesson.start("buffers")
+    truthy(wait_for(has("▸ [Shift l]")), panel())
   end)
 
   it("opens in a new tab with scratch buffers and shows 3-5 keys from your config", function()

@@ -52,7 +52,10 @@ medium ones a 5-row Spacey, large ones (50+ rows) a 9-row Spacey with more space
 - When it ends, everything goes back: your tab, your buffers (even if you pressed
   "Delete Other Buffers"), toggles and your colorscheme.
 - The keycaps light up as you type. If a key opens something (a picker, Lazygit), close it with `Esc` or `q`.
-- When a lesson is done, the menu comes back with the next lesson selected. Press `Enter` to go on, or `q` to stop.
+- A lesson is done in rounds of up to 5 keys. A key you pressed for real in a lesson is **done** and
+  does not come back. After a round, the menu opens with the next round selected: press `Enter` to go on.
+- When all keys of a group are done, the group shows **✓ finished**. Starting it again gives a **review**
+  of the keys you have not learned yet. `:Lazynator reset <group>` makes the keys new again.
 - Keys come from your config, read live. Change a keymap and the next lesson shows it. No restart.
   Keys that are not in your config are skipped.
 

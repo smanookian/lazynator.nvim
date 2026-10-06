@@ -10,7 +10,7 @@ local progress = require("lazynator.progress")
 local track = require("lazynator.track")
 local ui = require("lazynator.ui")
 
-local MIN, MAX = 3, 5
+local MAX = 5 -- keys per round
 
 ---@class lazynator.Step
 ---@field id string
@@ -222,29 +222,30 @@ local function render()
     return
   end
   local lines
+  local title = L.group.name .. (L.review and " review" or " lesson")
   if L.finished then
     local learned, total = group_learned()
     lines = ui.with_spacey("done", {
-      { { L.group.name .. " lesson done!", "LazynatorTitle" } },
+      { { title .. " done!", "LazynatorTitle" } },
       { { ("%d of %d keys pressed for real."):format(counts(), #L.steps) } },
       { { ("%s learned: %d of %d"):format(L.group.name, learned, total), "LazynatorDim" } },
     })
   elseif L.empty then
-    lines = ui.with_spacey("think", {
-      { { L.group.name .. " lesson", "LazynatorTitle" } },
-      { { "I found no keys for this group in your config." } },
-      { { "Nothing to practice here.", "LazynatorDim" } },
+    lines = ui.with_spacey(L.empty == "learned" and "done" or "think", {
+      { { title, "LazynatorTitle" } },
+      { { L.empty == "learned" and "You learned every key here!" or "I found no keys for this group in your config." } },
+      { { L.empty == "learned" and "Nothing left to review." or "Nothing to practice here.", "LazynatorDim" } },
     })
   elseif not L.steps then
     lines = ui.with_spacey("think", {
-      { { L.group.name .. " lesson", "LazynatorTitle" } },
+      { { title, "LazynatorTitle" } },
       { { "Getting ready..." } },
       { { "Waiting for the language server.", "LazynatorDim" } },
     })
   else
     lines = ui.with_spacey(L.mood, {
-      { { L.group.name .. " lesson", "LazynatorTitle" } },
-      { { "Press each key for real." } },
+      { { title, "LazynatorTitle" } },
+      { { L.review and "All done here. Practice the keys you have not learned yet." or "Press each key for real." } },
       { { "Typing the : command does not count.", "LazynatorDim" } },
     })
     lines[#lines + 1] = {}
@@ -333,43 +334,49 @@ finish = function()
   vim.defer_fn(function()
     if L == me then
       M.stop()
-      -- go on: the menu opens with the next lesson selected (Enter starts it)
-      local next_i
+      -- go on: the menu opens with the next round selected (Enter starts it). That is the same
+      -- group until all its keys are done, then the next group that is not finished.
+      local counts = require("lazynator.menu").counts()
+      local n = #groups.list
+      local start
       for i, g in ipairs(groups.list) do
         if g.id == me.group.id then
-          next_i = i % #groups.list + 1
+          start = i
         end
       end
-      require("lazynator.menu").open({ select = next_i })
+      local select
+      for step = 0, n - 1 do
+        local i = (start - 1 + step) % n + 1
+        if counts[i].total > 0 and counts[i].done < counts[i].total then
+          select = i
+          break
+        end
+      end
+      require("lazynator.menu").open({ select = select, more = select == start })
     end
   end, 3500)
 end
 
+--- Keys for this round: the next ones not done yet (in lesson order). When all are done:
+--- a review of the keys not learned yet. Returns the keys and "lesson", "review" or nil.
 local function pick(list)
-  local todo, learned = {}, {}
-  for i, k in ipairs(list) do
-    k.order = i
-    if progress.state(k.id) == "learned" then
-      learned[#learned + 1] = k
-    else
+  local todo, review = {}, {}
+  for _, k in ipairs(list) do
+    if not progress.is_done(k.id) then
       todo[#todo + 1] = k
+    elseif progress.state(k.id) ~= "learned" then
+      review[#review + 1] = k
     end
+  end
+  local from, kind = todo, "lesson"
+  if #todo == 0 then
+    from, kind = review, "review"
   end
   local out = {}
-  for _, k in ipairs(todo) do
-    if #out < MAX then
-      out[#out + 1] = k
-    end
+  for i = 1, math.min(MAX, #from) do
+    out[i] = from[i]
   end
-  for _, k in ipairs(learned) do
-    if #out < MIN then
-      out[#out + 1] = k
-    end
-  end
-  table.sort(out, function(a, b)
-    return a.order < b.order
-  end)
-  return out
+  return out, #out > 0 and kind or nil
 end
 
 local function build_steps()
@@ -379,9 +386,10 @@ local function build_steps()
   local win = main_win()
   local buf = win and vim.api.nvim_win_get_buf(win) or vim.api.nvim_get_current_buf()
   track.refresh(buf)
-  local chosen = pick(keys.group_keys(L.group, keys.live(buf)))
-  if #chosen == 0 then
-    L.empty = true
+  local list = keys.group_keys(L.group, keys.live(buf))
+  local chosen, kind = pick(list)
+  if not kind then
+    L.empty = #list == 0 and "none" or "learned"
     render()
     local me = L
     vim.defer_fn(function()
@@ -391,6 +399,7 @@ local function build_steps()
     end, 3500)
     return
   end
+  L.review = kind == "review"
   L.steps = {}
   for _, k in ipairs(chosen) do
     L.steps[#L.steps + 1] = {
@@ -429,6 +438,7 @@ local function on_press(id)
     return
   end
   s.state = "done"
+  progress.done(s.id)
   s.lit = #s.tokens
   L.mood = "happy"
   L.note = { "Yes! That was a real press.", "LazynatorOk" }
