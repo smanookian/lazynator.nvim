@@ -1,0 +1,90 @@
+local keys = require("lazynator.keys")
+local groups = require("lazynator.groups")
+
+describe("key ids and labels", function()
+  it("writes the leader as <leader> and Shift keys as capitals", function()
+    eq("<leader>bd", keys.id("<leader>bd"))
+    eq("<leader>bd", keys.id_raw(" bd"))
+    eq("L", keys.id("<S-l>"))
+    eq("<C-H>", keys.id("<C-h>"))
+  end)
+
+  it("shows keys the way you press them", function()
+    eq("Space b d", keys.text("<leader>bd"))
+    eq("Space b Shift d", keys.text(keys.id("<leader>bD")))
+    eq("Shift l", keys.text(keys.id("<S-l>")))
+    eq("Ctrl h", keys.text(keys.id("<C-h>")))
+    eq("Space Space", keys.text(keys.id("<leader><space>")))
+    eq("Ctrl Up", keys.text(keys.id("<C-Up>")))
+    eq("Tab Tab", keys.text(keys.id("<Tab><Tab>")))
+    eq({ "Space", "b", "d" }, keys.labels("<leader>bd"))
+  end)
+
+  it("gives the keys as vim.on_key reports them", function()
+    eq({ "<Space>", "b", "d" }, keys.typed_tokens("<leader>bd"))
+    eq({ "L" }, keys.typed_tokens("L"))
+  end)
+end)
+
+describe("live keymaps", function()
+  it("sees a keymap added, changed and removed at runtime", function()
+    vim.keymap.set("n", "<leader>bx", function() end, { desc = "Old text" })
+    eq("Old text", keys.live()["<leader>bx"].desc)
+    vim.keymap.set("n", "<leader>bx", function() end, { desc = "New text" })
+    eq("New text", keys.live()["<leader>bx"].desc)
+    vim.keymap.del("n", "<leader>bx")
+    eq(nil, keys.live()["<leader>bx"])
+  end)
+
+  it("lets a buffer keymap win over the global one", function()
+    local buf = vim.api.nvim_create_buf(true, true)
+    vim.keymap.set("n", "<leader>cf", function() end, { buffer = buf, desc = "Format (buffer)" })
+    eq("Format (buffer)", keys.live(buf)["<leader>cf"].desc)
+    eq("Format", keys.live()["<leader>cf"].desc)
+    vim.api.nvim_buf_delete(buf, { force = true })
+  end)
+
+  it("uses the which-key description when the keymap has none", function()
+    package.loaded["which-key.config"] = { mappings = { { lhs = "<leader>bz", desc = "From which-key", mode = "n" } } }
+    vim.keymap.set("n", "<leader>bz", function() end)
+    eq("From which-key", keys.live()["<leader>bz"].desc)
+    vim.keymap.del("n", "<leader>bz")
+    package.loaded["which-key.config"] = nil
+  end)
+end)
+
+describe("group keys", function()
+  local buffers = groups.get("buffers")
+
+  it("puts listed keys first in list order, skips listed keys you do not have, then adds the rest", function()
+    local g = { id = "t", prefix = "b", keys = { "<S-l>", "<leader>bd", "<leader>bj", "<leader>bo" } }
+    local ids = vim.tbl_map(function(k)
+      return k.id
+    end, keys.group_keys(g, keys.live()))
+    -- <leader>bj is listed but not mapped; <leader>bb and <leader>bD are mapped but not listed
+    eq({ "L", "<leader>bd", "<leader>bo", "<leader>bb", "<leader>bD" }, ids)
+  end)
+
+  it("adds your own keys under the group prefix after the listed ones", function()
+    vim.keymap.set("n", "<leader>bk", function() end, { desc = "Kill Buffer" })
+    local list = keys.group_keys(buffers, keys.live())
+    eq("<leader>bk", list[#list].id)
+    eq("Kill Buffer", list[#list].desc)
+    vim.keymap.del("n", "<leader>bk")
+  end)
+
+  it("leaves out keys that go online", function()
+    local ids = vim.tbl_map(function(k)
+      return k.id
+    end, keys.group_keys(groups.get("git"), keys.live()))
+    eq({ "<leader>gg", "<leader>gs", "<leader>gl" }, ids)
+    eq(nil, keys.group_of("<leader>gB"))
+  end)
+
+  it("finds the group of a key", function()
+    eq("buffers", keys.group_of("L"))
+    eq("windows", keys.group_of("<C-H>"))
+    eq("files", keys.group_of("<leader>fz"))
+    eq(nil, keys.group_of("<Tab><Tab>"))
+  end)
+end)
