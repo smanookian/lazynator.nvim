@@ -11,8 +11,13 @@ Spacey, a lazy robot sloth that lives on your space bar, teaches you the LazyVim
 - **Nudges.** Do something the slow way (type `:bd`, click a buffer tab) and a small hint shows up:
   `Next time: [Space] [b] [d]`.
 
-Both feed one list. Each key is **new**, **learning** or **learned**.
-Learned = pressed 5 times in a row for real, with no nudge in between.
+Both feed one list. Each key is **new**, **learning** or **learned**:
+
+- **Done:** you pressed the key for real once in a lesson. Done keys do not come back in new rounds.
+- **Learned:** you pressed it for real **5 times in a row**, with no slow way in between.
+  One lesson round is one press. The rest comes from review rounds and from using the key while you work:
+  every real press counts, also outside lessons. Taking the slow way (like `:bd`) starts the count again.
+  Change the 5 with `opts = { learned_after = 3 }`.
 
 ## Install
 
