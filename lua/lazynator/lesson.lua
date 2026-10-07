@@ -291,7 +291,7 @@ local function render()
       lines[#lines + 1] = line
     end
     lines[#lines + 1] = {}
-    lines[#lines + 1] = L.note and { L.note } or { { "If something opens, close it with Esc or q.", "LazynatorDim" } }
+    lines[#lines + 1] = L.note and { L.note } or { { "If something opens, just press the next key.", "LazynatorDim" } }
     lines[#lines + 1] = {
       { ("%d/%d done"):format(counts(), #L.steps), "LazynatorDim" },
       { "   :Lazynator skip   :Lazynator stop", "LazynatorDim" },
@@ -438,9 +438,94 @@ local function build_steps()
   go_to(1)
 end
 
--- Light up keycaps as you type.
-local function on_typed(t)
-  local s = L and L.steps and L.steps[L.cur]
+-- True when a key opened something that has the focus now (a picker, the file tree, Lazygit,
+-- a terminal): then a lesson key would be typed into that, not run.
+local function away()
+  if not L or vim.api.nvim_get_current_tabpage() ~= L.tab then
+    return false
+  end
+  local win = vim.api.nvim_get_current_win()
+  if win == L.float.win or win == L.float.pic_win then
+    return false
+  end
+  if vim.api.nvim_win_get_config(win).relative ~= "" then
+    return true
+  end
+  local mode = vim.api.nvim_get_mode().mode
+  if mode ~= "n" then
+    return mode:sub(1, 1) == "t" or mode:sub(1, 1) == "i"
+  end
+  local buf = vim.api.nvim_win_get_buf(win)
+  return vim.bo[buf].buftype ~= "" and not vim.tbl_contains(L.scratch, buf)
+end
+
+-- Close what is open and go back to a practice window.
+local function come_back()
+  local ok, Snacks = pcall(require, "snacks")
+  if ok and type(Snacks) == "table" and Snacks.picker then
+    for _, p in ipairs(Snacks.picker.get() or {}) do
+      pcall(p.close, p)
+    end
+  end
+  for _, w in ipairs(vim.api.nvim_tabpage_list_wins(L.tab)) do
+    local cfg = vim.api.nvim_win_get_config(w)
+    if cfg.relative ~= "" and cfg.focusable ~= false and w ~= L.float.win and w ~= L.float.pic_win then
+      pcall(vim.api.nvim_win_close, w, true)
+    end
+  end
+  if vim.api.nvim_get_mode().mode ~= "n" then
+    vim.cmd("stopinsert")
+  end
+  if away() then
+    local win = main_win()
+    if win then
+      pcall(vim.api.nvim_set_current_win, win)
+    end
+  end
+end
+
+-- Light up keycaps as you type. If something opened by a key still has the focus and you press
+-- the first key of an open step: hold that key (and every key after it), close what is open,
+-- wait until you are back (which-key needs a moment to listen again), then play them in order.
+local function on_typed(t, _, raw)
+  if not (L and L.steps) or L.finished then
+    return
+  end
+  if L.held then
+    table.insert(L.held, raw)
+    return true
+  end
+  if away() then
+    for _, s in ipairs(L.steps) do
+      if (s.state == "now" or s.state == "todo") and s.tokens[1] == t then
+        L.held = { raw }
+        local me = L
+        vim.schedule(function()
+          if L ~= me then
+            return
+          end
+          come_back()
+          local tries = 0
+          local function replay()
+            if L ~= me then
+              return
+            end
+            tries = tries + 1
+            if away() and tries < 20 then
+              return vim.defer_fn(replay, 25)
+            end
+            local keys_ = table.concat(L.held)
+            L.held = nil
+            vim.api.nvim_feedkeys(keys_, "mti", false)
+          end
+          vim.defer_fn(replay, 50)
+        end)
+        return true
+      end
+    end
+    return -- a key for the open window (Esc, typing in a picker): no keycaps light up
+  end
+  local s = L.steps[L.cur]
   if not s or s.state ~= "now" then
     return
   end

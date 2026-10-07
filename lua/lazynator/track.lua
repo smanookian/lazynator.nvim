@@ -33,7 +33,8 @@ function M.on_press(fn)
   return add_listener(press_listeners, fn)
 end
 
---- Called for every key you type, with keytrans() of the typed keys.
+--- Called for every key you type: fn(keytrans of the typed key, key, raw typed bytes).
+--- If fn returns true, the key is held back (fn must run it again itself).
 ---@return fun() unsubscribe
 function M.on_key(fn)
   return add_listener(key_listeners, fn)
@@ -142,8 +143,13 @@ local function on_key(key, typed)
     return
   end
   local t = vim.fn.keytrans(typed)
+  local hold = false
   for _, fn in ipairs(key_listeners) do
-    pcall(fn, t, key)
+    local ok, r = pcall(fn, t, key, typed)
+    hold = hold or (ok and r == true)
+  end
+  if hold then
+    return "" -- a listener took this key (it runs it again later)
   end
 end
 

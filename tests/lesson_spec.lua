@@ -88,6 +88,25 @@ describe("lessons", function()
     truthy(has("▸ [Space] [b] [d]")(), panel())
   end)
 
+  it("a key pressed while a picker is open closes it and still counts", function()
+    lesson.start("buffers")
+    truthy(wait_for(has("▸ [Shift l]")))
+    -- like a picker: a float with an input in insert mode
+    local pbuf = vim.api.nvim_create_buf(false, true)
+    local pwin = vim.api.nvim_open_win(pbuf, true, { relative = "editor", row = 1, col = 1, width = 30, height = 3 })
+    -- the picker's search field is in insert mode; Shift l is typed there
+    vim.api.nvim_feedkeys("i" .. vim.keycode("<S-l>"), "mt", false)
+    vim.api.nvim_feedkeys("", "x", false)
+    vim.wait(300, function() -- Lazynator closes the picker, then puts the key back
+      return vim.api.nvim_win_is_valid(pwin) == false and vim.fn.getchar(1) ~= 0
+    end, 10)
+    vim.api.nvim_feedkeys("", "x", false) -- run the key that was put back
+    truthy(wait_for(has("✓ [Shift l]")), panel())
+    eq(false, vim.api.nvim_win_is_valid(pwin))
+    eq("n", vim.api.nvim_get_mode().mode)
+    eq({ "" }, vim.api.nvim_buf_is_valid(pbuf) and vim.api.nvim_buf_get_lines(pbuf, 0, -1, false) or { "" })
+  end)
+
   local function buffer_keys()
     local keys = require("lazynator.keys")
     return vim.tbl_map(function(k)
