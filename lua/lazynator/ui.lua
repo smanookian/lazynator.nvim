@@ -157,12 +157,16 @@ local function close_picture(f)
   f.pic_win, f.pic_buf, f.picture = nil, nil, nil
 end
 
+-- Counts terminal resizes. Ghostty forgets picture data when its window changes size, so a
+-- picture shown before a resize must be sent again.
+local resizes = 0
+
 -- The picture gets its own small window on top of the blank area at the left of the float.
 -- (snacks.nvim can not draw a picture next to text in one window without hiding that text.)
 local function place_picture(f, lines, s)
   local file = lines.picture
   local key = file and (file .. lines.pic_w .. "x" .. lines.pic_h)
-  if not file or (f.picture and f.picture ~= key) then
+  if not file or (f.picture and (f.picture ~= key or f.pic_resizes ~= resizes)) then
     close_picture(f)
   end
   if not file then
@@ -190,7 +194,16 @@ local function place_picture(f, lines, s)
   f.pic_win = vim.api.nvim_open_win(f.pic_buf, false, cfg)
   vim.wo[f.pic_win].winhighlight = "Normal:LazynatorNormal,NormalFloat:LazynatorNormal"
   f.picture = key
-  f.placement = require("snacks").image.placement.new(f.pic_buf, file, { width = lines.pic_w, height = lines.pic_h })
+  f.pic_resizes = resizes
+  local Snacks = require("snacks")
+  -- Always send the picture data again (it is only a file path, so this is cheap). The terminal
+  -- may have dropped it: after a resize, or when snacks deleted it with the last placement
+  -- while still marking it as sent. Then the picture would stay blank.
+  local img = Snacks.image.image.new(file)
+  if img:ready() then
+    img.sent = false
+  end
+  f.placement = Snacks.image.placement.new(f.pic_buf, file, { width = lines.pic_w, height = lines.pic_h })
 end
 
 --- Keycaps for a key: [Space] [b] [d]
@@ -340,14 +353,26 @@ function M.show(f, o)
 end
 
 -- On resize, draw open floats again: the size (and the picture size) may change.
+-- Draw right away (so the box fits), and once more when the resizing has stopped: Ghostty clears
+-- pictures a moment after the resize, so the picture must be sent after that.
+local function redraw_all()
+  for f in pairs(open) do
+    if f.redraw and f.win and vim.api.nvim_win_is_valid(f.win) then
+      pcall(f.redraw)
+    end
+  end
+end
+local settle = (vim.uv or vim.loop).new_timer()
 vim.api.nvim_create_autocmd("VimResized", {
   group = vim.api.nvim_create_augroup("lazynator.resize", { clear = true }),
   callback = function()
-    for f in pairs(open) do
-      if f.redraw and f.win and vim.api.nvim_win_is_valid(f.win) then
-        pcall(f.redraw)
-      end
-    end
+    resizes = resizes + 1
+    redraw_all()
+    settle:stop()
+    settle:start(250, 0, vim.schedule_wrap(function()
+      resizes = resizes + 1
+      redraw_all()
+    end))
   end,
 })
 
