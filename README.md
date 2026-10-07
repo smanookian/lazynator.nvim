@@ -4,6 +4,8 @@
 
 Learn LazyVim keys in your real Neovim. Made for Omarchy. Works with any LazyVim.
 
+![Lazynator: type :bd and Spacey shows the key; then a Buffers lesson where only real presses count](assets/lazynator.gif)
+
 Spacey, a lazy robot sloth that lives on your space bar, teaches you the LazyVim keys in two ways:
 
 - **Lessons.** Pick a group. Spacey shows 3-5 keys. You press each one for real.
@@ -112,21 +114,6 @@ return {
   Wrapping is redone when plugins load, when you `:source` a file and when an LSP attaches.
 - A small built-in list gives only the lesson order, the groups and the slow-way commands
   (`lua/lazynator/groups.lua`).
-
-## GIF plan
-
-One GIF, about 25 seconds, fresh Omarchy, Tokyo Night, terminal about 120×35:
-
-1. Type `:bd`. The hint pops up: `Next time: [Space] [b] [d]`. (3 s)
-2. `:Lazynator`, press `1` (Buffers). The lesson opens. (3 s)
-3. Press `Shift l`, then `Shift h`. Keycaps light up, check marks appear. (5 s)
-4. Type `:bnext` instead. "That was the slow way. It does not count." (3 s)
-5. Press `Space b d`. Lesson done, Spacey sits on the bar and cheers. (4 s)
-6. `:Lazynator stats`. (3 s)
-7. Click a buffer tab with the mouse. `Next time: [Shift l]`. (3 s)
-
-Record with `omarchy capture screenrecording` (stop with `--stop-recording`), make the GIF with
-`gifski` (800 px wide, under 3 MB), save it as `assets/lazynator.gif` and put it at the top of this README.
 
 ## Develop
 
