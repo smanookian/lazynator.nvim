@@ -69,9 +69,10 @@ function M.spacey(mood)
 end
 
 -- Sizes, picked from the terminal size (and picked again when you resize):
--- small: text drawing, compact. medium: picture 5 rows tall. large: picture 9 rows, more space.
+-- small: compact, picture 4 rows tall. medium: picture 5 rows. large: picture 9 rows, more space.
+-- Terminals that can not show pictures get the text drawing in every size.
 local SIZES = {
-  small = { pad_x = 1, pad_y = 0 },
+  small = { pad_x = 1, pad_y = 0, pic_w = 10, pic_h = 4 },
   medium = { pad_x = 1, pad_y = 0, pic_w = 12, pic_h = 5 },
   large = { pad_x = 3, pad_y = 1, pic_w = 22, pic_h = 9 },
 }

@@ -35,7 +35,7 @@ Needs Neovim 0.11.2 or newer.
 In Foot and Alacritty you see a small text drawing instead, because those terminals can't show pictures.
 Everything else works the same in every terminal.
 
-The boxes grow with your terminal: small terminals (under 30 rows) get a compact box with the text drawing,
+The boxes grow with your terminal: small terminals (under 30 rows) get a compact box with a 4-row Spacey,
 medium ones a 5-row Spacey, large ones (50+ rows) a 9-row Spacey with more space. Resize, and they follow.
 
 ## Commands
