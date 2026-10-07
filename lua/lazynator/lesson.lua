@@ -468,9 +468,12 @@ local function come_back()
     end
   end
   for _, w in ipairs(vim.api.nvim_tabpage_list_wins(L.tab)) do
-    local cfg = vim.api.nvim_win_get_config(w)
-    if cfg.relative ~= "" and cfg.focusable ~= false and w ~= L.float.win and w ~= L.float.pic_win then
-      pcall(vim.api.nvim_win_close, w, true)
+    -- closing one window can close others (a popup and its border): check each one first
+    if vim.api.nvim_win_is_valid(w) then
+      local cfg = vim.api.nvim_win_get_config(w)
+      if cfg.relative ~= "" and cfg.focusable ~= false and w ~= L.float.win and w ~= L.float.pic_win then
+        pcall(vim.api.nvim_win_close, w, true)
+      end
     end
   end
   if vim.api.nvim_get_mode().mode ~= "n" then
@@ -484,39 +487,63 @@ local function come_back()
   end
 end
 
+local HOLD_MAX = 1000 -- ms: held keys are always played back within this time
+
+-- Play held keys back. Safe to call more than once and from anywhere.
+local function release(held)
+  if held.done then
+    return
+  end
+  held.done = true
+  if L and L.held == held then
+    L.held = nil
+    L.replay_until = vim.uv.now() + 300 -- keys played back now must not be held again
+  end
+  local keys_ = table.concat(held)
+  if keys_ ~= "" then
+    vim.api.nvim_feedkeys(keys_, "mti", false)
+  end
+end
+
 -- Light up keycaps as you type. If something opened by a key still has the focus and you press
 -- the first key of an open step: hold that key (and every key after it), close what is open,
 -- wait until you are back (which-key needs a moment to listen again), then play them in order.
+-- Whatever goes wrong, held keys are played back within HOLD_MAX: Neovim never gets stuck.
 local function on_typed(t, _, raw)
   if not (L and L.steps) or L.finished then
     return
   end
   if L.held then
     table.insert(L.held, raw)
+    if vim.uv.now() - L.held.at >= HOLD_MAX then
+      release(L.held) -- held too long: give all keys back now, in order
+    end
     return true
+  end
+  if (L.replay_until or 0) > vim.uv.now() then
+    return
   end
   if away() then
     for _, s in ipairs(L.steps) do
       if (s.state == "now" or s.state == "todo") and s.tokens[1] == t then
-        L.held = { raw }
+        local held = { raw, at = vim.uv.now() }
+        L.held = held
         local me = L
+        vim.defer_fn(function()
+          release(held) -- safety net
+        end, HOLD_MAX)
         vim.schedule(function()
-          if L ~= me then
-            return
+          if L == me then
+            pcall(come_back)
           end
-          come_back()
           local tries = 0
           local function replay()
-            if L ~= me then
-              return
-            end
             tries = tries + 1
-            if away() and tries < 20 then
+            local ok, still_away = pcall(away)
+            if L == me and ok and still_away and tries < 20 then
               return vim.defer_fn(replay, 25)
             end
-            local keys_ = table.concat(L.held)
-            L.held = nil
-            vim.api.nvim_feedkeys(keys_, "mti", false)
+            release(held)
           end
           vim.defer_fn(replay, 50)
         end)

@@ -107,6 +107,39 @@ describe("lessons", function()
     eq({ "" }, vim.api.nvim_buf_is_valid(pbuf) and vim.api.nvim_buf_get_lines(pbuf, 0, -1, false) or { "" })
   end)
 
+  it("never gets stuck: a popup whose border closes with it (like noice)", function()
+    lesson.start("buffers")
+    truthy(wait_for(has("▸ [Shift l]")))
+    local function float(enter)
+      local b = vim.api.nvim_create_buf(false, true)
+      return vim.api.nvim_open_win(b, enter, { relative = "editor", row = 2, col = 2, width = 20, height = 3 })
+    end
+    local border = float(false)
+    local popup = float(true)
+    vim.api.nvim_create_autocmd("WinClosed", { -- closing the popup closes its border too
+      pattern = tostring(popup),
+      once = true,
+      callback = function()
+        pcall(vim.api.nvim_win_close, border, true)
+      end,
+    })
+    vim.api.nvim_feedkeys("i" .. vim.keycode("<S-l>"), "mt", false) -- typed in the popup, like a picker
+    vim.api.nvim_feedkeys("", "x", false)
+    vim.wait(400, function()
+      return vim.fn.getchar(1) ~= 0
+    end, 10)
+    vim.api.nvim_feedkeys("", "x", false)
+    truthy(wait_for(has("✓ [Shift l]")), panel())
+    eq(false, vim.api.nvim_win_is_valid(popup))
+    -- typing still works
+    vim.api.nvim_feedkeys(vim.keycode(":let g:lzn_alive = 1<CR>"), "mtx", false)
+    vim.wait(400, function()
+      return vim.fn.getchar(1) ~= 0
+    end, 10)
+    vim.api.nvim_feedkeys("", "x", false)
+    eq(1, vim.g.lzn_alive)
+  end)
+
   local function buffer_keys()
     local keys = require("lazynator.keys")
     return vim.tbl_map(function(k)
